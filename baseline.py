@@ -3,10 +3,16 @@ import pandas as pd
 import sys
 from nltk.tokenize import RegexpTokenizer
 from nltk.corpus import stopwords
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, LSTM
 from keras.utils import np_utils
 from keras.callbacks import ModelCheckpoint
+
+import keras
+import tensorflow as tf
+config = tf.ConfigProto( device_count = {'GPU': 1 , 'CPU': 4} ) 
+sess = tf.Session(config=config) 
+keras.backend.set_session(sess)
 
 def tokenize_words(input):
     input = input.lower()
@@ -65,7 +71,7 @@ filepath = "model_weights_saved.hdf5"
 checkpoint = ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
 print('saved')
 desired_callbacks = [checkpoint]
-model.fit(X, y, epochs=1, batch_size=256, callbacks=desired_callbacks)
+model.fit(X, y, epochs=20, batch_size=256, callbacks=desired_callbacks)
 filename = "model_weights_saved.hdf5"
 model.load_weights(filename)
 model.compile(loss='categorical_crossentropy', optimizer='adam')
@@ -78,6 +84,8 @@ for i in range(1000):
     x = np.reshape(pattern, (1, len(pattern), 1))
     x = x / float(vocab_len)
     prediction = model.predict(x, verbose=0)
+    w = prediction.tolist()[0]
+    w[0] += 1-sum(w)
     index = np.argmax(prediction)
     result = num_to_char[index]
     seq_in = [num_to_char[value] for value in pattern]
