@@ -16,7 +16,7 @@ def tokenize_words(input):
     return " ".join(filtered)
 
 
-gg = pd.read_csv('Elizabeth Warren.csv')
+gg = pd.read_csv('../data/Elizabeth Warren.csv')
 gg = gg.to_numpy()[:,2]
 input = ''.join(gg[pd.notnull(gg)])
 
