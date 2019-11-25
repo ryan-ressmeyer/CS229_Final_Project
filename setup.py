@@ -9,7 +9,7 @@ setup(
         'nltk',
         'pandas',
         'tensorflow',
-        'tensorflow-gpu',
+        'tensorflow-gpu>=1.1.0',
     ],
     packages=find_packages()
 )
