@@ -17,7 +17,7 @@ def createCSVFile(handle, name):
 	alltweets = []
 
 		#make initial request for most recent tweets (200 is the maximum allowed count)
-	new_tweets = api.user_timeline(screen_name = handle,count=200)
+	new_tweets = api.user_timeline(screen_name = handle,count=200, tweet_mode = "extended")
 
 		#save most recent tweets
 	alltweets.extend(new_tweets)
@@ -30,7 +30,7 @@ def createCSVFile(handle, name):
 		print( "getting tweets before %s" % (oldest))
 
 			#all subsiquent requests use the max_id param to prevent duplicates
-		new_tweets = api.user_timeline(screen_name = handle, count=200,max_id=oldest)
+		new_tweets = api.user_timeline(screen_name = handle, count=200,max_id=oldest, tweet_mode = "extended")
 
 			#save most recent tweets
 		alltweets.extend(new_tweets)
@@ -44,7 +44,7 @@ def createCSVFile(handle, name):
 
 	def func(var):
 		return not var[2][:2] == 'RT'
-	outtweets = [[tweet.id_str, tweet.created_at, tweet.text] for tweet in alltweets]
+	outtweets = [[tweet.id_str, tweet.created_at, tweet.full_text] for tweet in alltweets]
 	ot = filter(func, list(outtweets))
 
 
@@ -52,10 +52,12 @@ def createCSVFile(handle, name):
 
 	last = [''.join(w.split('\n')) for w in rez]
 	lastLast = [" ".join(w.split()[:-1]) if 'https' in w.split()[-1] else w for w in last]
+	# print(lastLast[::-1])
 
 	a = np.repeat(name, len(lastLast))
 	df = pd.DataFrame(np.array([a, lastLast]).T, columns=["Name", "Tweet"])
-	df.to_csv(name  + ".csv")
+	pd.set_option("display.max_colwidth", 10000)
+	df.to_csv(name + ".csv")
 
 
 createCSVFile("SenWarren", "Elizabeth Warren")
