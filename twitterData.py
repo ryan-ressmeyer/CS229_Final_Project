@@ -60,7 +60,7 @@ def createCSVFile(handle, name):
 	df.to_csv(name + ".csv")
 
 
-createCSVFile("SenWarren", "Elizabeth Warren")
+createCSVFile("SenSanders", "Sanders")
 # createCSVFile("SenWarren", "Elizabeth Warren")
 # createCSVFile("SenWarren", "Elizabeth Warren")
 # createCSVFile("SenWarren", "Elizabeth Warren")
