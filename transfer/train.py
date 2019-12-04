@@ -3,6 +3,9 @@
 import os
 import math
 import logging
+import csv
+import random
+
 from pprint import pformat
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -16,10 +19,9 @@ from ignite.handlers import ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, MetricsLambda, RunningAverage
 from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, OutputHandler, OptimizerParamsHandler
-from pytorch_transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer,
+from transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer,
                                   GPT2DoubleHeadsModel, GPT2Tokenizer, WEIGHTS_NAME, CONFIG_NAME)
 
-from utils import get_dataset, make_logdir
 
 SPECIAL_TOKENS = ["<bos>", "<eos>", "<name>", "<previous>", "<current>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<bos>', 'eos_token': '<eos>', 'pad_token': '<pad>',
@@ -60,41 +62,111 @@ def add_special_tokens_(model, tokenizer):
 # tweets need to be in tokenized form ["word", "word", ...]
 def build_input_from_segments(name, previous_tweet, current_tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from 3 segments: persona, history and last reply. """
-    bos, eos, name_tok, prev_tok, curr_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
-    sequence = [bos, name, prev_tok] + previous_tweet + [curr_tok] + current_tweet + [eos] if with_eos else []
+    bos, eos, name_tok, previous_tok, current_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) # all but <pad>
+    sequence = [[bos, name], [previous_tok, previous_tweet], [current_tok, current_tweet, eos]]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
-    instance["token_type_ids"] = [speaker2 if i % 2 else speaker1 for i, s in enumerate(sequence) for _ in s]
+    instance["token_type_ids"] = [name_tok]*2 + [previous_tok]*len(sequence[1]) + [current_tok]*len(sequence[2])
     instance["mc_token_ids"] = len(instance["input_ids"]) - 1
     instance["lm_labels"] = [-1] * len(instance["input_ids"])
     if lm_labels:
         instance["lm_labels"] = ([-1] * sum(len(s) for s in sequence[:-1])) + [-1] + sequence[-1][1:]
     return instance
 
+#backup
+"""
+def build_input_from_segments(persona, history, reply, tokenizer, lm_labels=False, with_eos=True):
+    bos, eos, speaker1, speaker2 = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
+    sequence = [[bos] + list(chain(*persona))] + history + [reply + ([eos] if with_eos else [])]
+    # sequence = [<bos> persona, history[0], history[1], reply <eos>]
+    sequence = [sequence[0]] + [[speaker2 if (len(sequence)-i) % 2 else speaker1] + s for i, s in enumerate(sequence[1:])] # always ends with reply adds speaker to end
+    instance = {}
+    instance["input_ids"] = list(chain(*sequence)) # combines into one list
+    instance["token_type_ids"] = [speaker2 if i % 2 else speaker1 for i, s in enumerate(sequence) for _ in s] # write tokens over each block of sequence
+    instance["mc_token_ids"] = len(instance["input_ids"]) - 1 # final length for mc
+    instance["lm_labels"] = [-1] * len(instance["input_ids"]) # all -1 if not for lm
+    if lm_labels:
+        instance["lm_labels"] = ([-1] * sum(len(s) for s in sequence[:-1])) + [-1] + sequence[-1][1:] # -1 for all except reply if for lm
+    return instance
+"""
+
+def make_logdir(model_name: str):
+    """Create unique path to save results and checkpoints, e.g. runs/Sep22_19-45-59_gpu-7_gpt2"""
+    # Code copied from ignite repo
+    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    logdir = os.path.join(
+        'runs', current_time + '_' + socket.gethostname() + '_' + model_name)
+    return logdir
+
+def get_dataset(tokenizer):
+    """ Generate tokenized dataset"""
+    target_path = "dataset_path"
+    distractor_path = "distractor_path"
+
+    target = []
+    distractor = []
+    with open(dataset_path) as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            target.append(row)
+        
+    with open(distractor_path) as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            distractor.append(row)
+    
+    def clean(data):
+        return [tweet[1:2] for tweet in data if tweet[2].count(' ') > 3]
+    
+    target = clean(target)
+    distractor = clean(distractor)
+    num_distractor = len(distractor)
+    num_tweets = len(target)
+    utterances = []
+    for i in range(0, num_tweets - num_tweets%2, 2):
+        utterances.append([{'history' : [target[i+1][1]], 'candidates' : [distractor[random.randint(0, num_distractor)][1], target[i][1]]}])
+    random.shuffle(utterances)
+    split = int(float(num_tweets) * .7)
+    train = utterances[:split]
+    test = utterances[split:]
+    dataset = {'train' : [{'name' : target[0], 'utterances' : train}], 'test' : [{'name' : target[0], 'utterances' : test}]}
+    print(dataset)
+    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
+    logger.info("Tokenize and encode the dataset")
+    def tokenize(obj):
+        if isinstance(obj, str):
+            return tokenizer.convert_tokens_to_ids(tokenizer.tokenize(obj))
+        if isinstance(obj, dict):
+            return dict((n, tokenize(o)) for n, o in obj.items())
+        return list(tokenize(o) for o in obj)
+    dataset = tokenize(dataset)
+    torch.save(dataset, dataset_cache)
+    return dataset
+
 
 def get_data_loaders(args, tokenizer):
     """ Prepare the dataset for training and evaluation """
-    personachat = get_dataset(tokenizer, args.dataset_path, args.dataset_cache)
-
+    tweets = get_dataset(tokenizer, args.dataset_path, args.dataset_cache)
+    #old: {'train' : [{"personality": "", "utterances" : [{"candidates": ["final is real"], "history":["first","second"]}]}]}
+    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
     logger.info("Build inputs and labels")
     datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
-    for dataset_name, dataset in personachat.items():
-        num_candidates = len(dataset[0]["utterances"][0]["candidates"])
+    for dataset_name, dataset in tweets.items():
+        num_candidates = len(dataset[0]["utterances"][0]["candidates"]) # number of possibilities after a given history
         if args.num_candidates > 0 and dataset_name == 'train':
             num_candidates = min(args.num_candidates, num_candidates)
-        for dialog in dataset:
-            persona = dialog["personality"].copy()
-            for _ in range(args.personality_permutations):
-                for utterance in dialog["utterances"]:
-                    history = utterance["history"][-(2*args.max_history+1):]
-                    for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
-                        lm_labels = bool(j == num_candidates-1)
-                        instance = build_input_from_segments(persona, history, candidate, tokenizer, lm_labels)
-                        for input_name, input_array in instance.items():
-                            datasets[dataset_name][input_name].append(input_array)
-                    datasets[dataset_name]["mc_labels"].append(num_candidates - 1)
-                    datasets[dataset_name]["n_candidates"] = num_candidates
-                persona = [persona[-1]] + persona[:-1]  # permuted personalities
+        for tweet_pair in dataset:
+            persona = tweet_pair["name"].copy()
+            for utterance in dialog["utterances"]:
+                previous_tweet = utterance["history"][-1] # num history will be 1 [-(2*args.max_history+1):] (doubled to include both bot history and regular history)
+                for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
+                    lm_labels = bool(j == num_candidates-1) # lm_label is true if it is the correct output
+                    instance = build_input_from_segments(persona, previous_tweet, candidate, tokenizer, lm_labels) # here it is built 
+                    for input_name, input_array in instance.items():
+                        datasets[dataset_name][input_name].append(input_array) # adds instance contents to datasets
+                datasets[dataset_name]["mc_labels"].append(num_candidates - 1) # mc_labels is index to the final and correct candidate? (number of candidates - 1)
+                datasets[dataset_name]["n_candidates"] = num_candidates # adds number of candidates
+
 
     logger.info("Pad inputs and convert to Tensor")
     tensor_datasets = {"train": [], "valid": []}
@@ -117,14 +189,13 @@ def get_data_loaders(args, tokenizer):
     logger.info("Valid dataset (Batch, Candidates, Seq length): {}".format(valid_dataset.tensors[0].shape))
     return train_loader, valid_loader, train_sampler, valid_sampler
 
-
 def train():
     parser = ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, default="", help="Path or url of the dataset. If empty download from S3.")
-    parser.add_argument("--dataset_cache", type=str, default='./dataset_cache', help="Path or url of the dataset cache")
+    #parser.add_argument("--dataset_path", type=str, default="", help="Path or url of the dataset. If empty download from S3.")
+    #parser.add_argument("--dataset_cache", type=str, default='./dataset_cache', help="Path or url of the dataset cache")
     parser.add_argument("--model_checkpoint", type=str, default="openai-gpt", help="Path, url or short name of the model")
-    parser.add_argument("--num_candidates", type=int, default=2, help="Number of candidates for training")
-    parser.add_argument("--max_history", type=int, default=2, help="Number of previous exchanges to keep in history")
+    parser.add_argument("--num_candidates", type=int, default=2, help="Number of candidates for training") # candidates will always be 2
+    #parser.add_argument("--max_history", type=int, default=1, help="Number of previous exchanges to keep in history") #irrelevant should be 1
     parser.add_argument("--train_batch_size", type=int, default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int, default=4, help="Batch size for validation")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Accumulate gradients on several steps")
@@ -133,7 +204,7 @@ def train():
     parser.add_argument("--mc_coef", type=float, default=1.0, help="Multiple-choice loss coefficient")
     parser.add_argument("--max_norm", type=float, default=1.0, help="Clipping gradient norm")
     parser.add_argument("--n_epochs", type=int, default=3, help="Number of training epochs")
-    parser.add_argument("--personality_permutations", type=int, default=1, help="Number of permutations of personality sentences")
+    #parser.add_argument("--personality_permutations", type=int, default=1, help="Number of permutations of personality sentences") #irrelevant
     parser.add_argument("--eval_before_start", action='store_true', help="If true start with a first evaluation before training")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cuda or cpu)")
     parser.add_argument("--fp16", type=str, default="", help="Set to O0, O1, O2 or O3 for fp16 training (see apex documentation)")
@@ -161,7 +232,7 @@ def train():
     model = model_class.from_pretrained(args.model_checkpoint)
     model.to(args.device)
     # Add special tokens if they are not already added
-    add_special_tokens_(model, tokenizer)
+    add_special_tokens_(model, tokenizer) ### TODO add our own special tokens
     optimizer = AdamW(model.parameters(), lr=args.lr, correct_bias=True)
 
     # Prepare model for FP16 and distributed training if needed (order is important, distributed should be the last)
@@ -172,7 +243,7 @@ def train():
         model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
 
     logger.info("Prepare datasets")
-    train_loader, val_loader, train_sampler, valid_sampler = get_data_loaders(args, tokenizer)
+    train_loader, val_loader, train_sampler, valid_sampler = get_data_loaders(args, tokenizer) ### TODO load data ourselves
 
     # Training function and trainer
     def update(engine, batch):
