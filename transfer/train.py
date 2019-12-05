@@ -35,7 +35,7 @@ logger = logging.getLogger(__file__)
 
 def average_distributed_scalar(scalar, args):
     """ Average a scalar over the nodes if we are in distributed training. We use this for distributed evaluation. """
-    # Distributed computing 
+    # Distributed computing
 
     if args.local_rank == -1:
         return scalar
@@ -109,15 +109,15 @@ def get_dataset(tokenizer):
         reader = csv.reader(csvfile)
         for row in reader:
             target.append(row)
-        
+
     with open(distractor_path) as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             distractor.append(row)
-    
+
     def clean(data):
         return [tweet[1:2] for tweet in data if tweet[2].count(' ') > 3]
-    
+
     target = clean(target)
     distractor = clean(distractor)
     num_distractor = len(distractor)
@@ -161,7 +161,7 @@ def get_data_loaders(args, tokenizer):
                 previous_tweet = utterance["history"][-1] # num history will be 1 [-(2*args.max_history+1):] (doubled to include both bot history and regular history)
                 for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
                     lm_labels = bool(j == num_candidates-1) # lm_label is true if it is the correct output
-                    instance = build_input_from_segments(persona, previous_tweet, candidate, tokenizer, lm_labels) # here it is built 
+                    instance = build_input_from_segments(persona, previous_tweet, candidate, tokenizer, lm_labels) # here it is built
                     for input_name, input_array in instance.items():
                         datasets[dataset_name][input_name].append(input_array) # adds instance contents to datasets
                 datasets[dataset_name]["mc_labels"].append(num_candidates - 1) # mc_labels is index to the final and correct candidate? (number of candidates - 1)
@@ -245,6 +245,7 @@ def train():
     logger.info("Prepare datasets")
     train_loader, val_loader, train_sampler, valid_sampler = get_data_loaders(args, tokenizer) ### TODO load data ourselves
 
+    #this is a change
     # Training function and trainer
     def update(engine, batch):
         model.train()
