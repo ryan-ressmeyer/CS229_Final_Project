@@ -8,6 +8,13 @@ from keras.layers import Dense, Dropout, LSTM
 from keras.utils import np_utils
 from keras.callbacks import ModelCheckpoint
 
+import keras
+import tensorflow as tf
+
+config = tf.ConfigProto( device_count = {'GPU': 1 , 'CPU': 4} ) 
+sess = tf.Session(config=config) 
+keras.backend.set_session(sess)
+
 def tokenize_words(input):
     input = input.lower()
     tokenizer = RegexpTokenizer(r'\w+')

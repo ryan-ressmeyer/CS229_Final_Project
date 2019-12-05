@@ -5,7 +5,9 @@ import math
 import logging
 import csv
 import random
+import socket
 
+from datetime import *
 from pprint import pformat
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -63,7 +65,7 @@ def add_special_tokens_(model, tokenizer):
 def build_input_from_segments(name, previous_tweet, current_tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from 3 segments: persona, history and last reply. """
     bos, eos, name_tok, previous_tok, current_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) # all but <pad>
-    sequence = [[bos, name], [previous_tok, previous_tweet], [current_tok, current_tweet, eos]]
+    sequence = [[bos , name[0]], [previous_tok] + previous_tweet, [current_tok] + current_tweet + [eos]]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [name_tok]*2 + [previous_tok]*len(sequence[1]) + [current_tok]*len(sequence[2])
@@ -100,12 +102,12 @@ def make_logdir(model_name: str):
 
 def get_dataset(tokenizer):
     """ Generate tokenized dataset"""
-    target_path = "dataset_path"
-    distractor_path = "distractor_path"
+    target_path = "Trump.csv"
+    distractor_path = "Elizabeth Warren.csv"
 
     target = []
     distractor = []
-    with open(dataset_path) as csvfile:
+    with open(target_path) as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             target.append(row)
@@ -116,21 +118,23 @@ def get_dataset(tokenizer):
             distractor.append(row)
 
     def clean(data):
-        return [tweet[1:2] for tweet in data if tweet[2].count(' ') > 3]
-
+        return [tweet[1:] for tweet in data if tweet[2].count(' ') > 3]
+    
     target = clean(target)
     distractor = clean(distractor)
     num_distractor = len(distractor)
     num_tweets = len(target)
     utterances = []
     for i in range(0, num_tweets - num_tweets%2, 2):
-        utterances.append([{'history' : [target[i+1][1]], 'candidates' : [distractor[random.randint(0, num_distractor)][1], target[i][1]]}])
+        utterances.append({'history' : [target[i+1][1]], 'candidates' : [distractor[random.randint(0, num_distractor-1)][1], target[i][1]]})
+
     random.shuffle(utterances)
-    split = int(float(num_tweets) * .7)
+    
+    split = int(num_tweets*3/8)
     train = utterances[:split]
-    test = utterances[split:]
-    dataset = {'train' : [{'name' : target[0], 'utterances' : train}], 'test' : [{'name' : target[0], 'utterances' : test}]}
-    print(dataset)
+    valid = utterances[split:]
+
+    dataset = {'train' : [{'name' : target[0][0], 'utterances' : train}], 'valid' : [{'name' : target[0][0], 'utterances' : valid}]}
     #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
     logger.info("Tokenize and encode the dataset")
     def tokenize(obj):
@@ -140,13 +144,13 @@ def get_dataset(tokenizer):
             return dict((n, tokenize(o)) for n, o in obj.items())
         return list(tokenize(o) for o in obj)
     dataset = tokenize(dataset)
-    torch.save(dataset, dataset_cache)
+    torch.save(dataset, "dataset.bin")
     return dataset
 
 
 def get_data_loaders(args, tokenizer):
     """ Prepare the dataset for training and evaluation """
-    tweets = get_dataset(tokenizer, args.dataset_path, args.dataset_cache)
+    tweets = get_dataset(tokenizer)
     #old: {'train' : [{"personality": "", "utterances" : [{"candidates": ["final is real"], "history":["first","second"]}]}]}
     #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
     logger.info("Build inputs and labels")
@@ -155,8 +159,8 @@ def get_data_loaders(args, tokenizer):
         num_candidates = len(dataset[0]["utterances"][0]["candidates"]) # number of possibilities after a given history
         if args.num_candidates > 0 and dataset_name == 'train':
             num_candidates = min(args.num_candidates, num_candidates)
-        for tweet_pair in dataset:
-            persona = tweet_pair["name"].copy()
+        for dialog in dataset:
+            persona = dialog["name"].copy()
             for utterance in dialog["utterances"]:
                 previous_tweet = utterance["history"][-1] # num history will be 1 [-(2*args.max_history+1):] (doubled to include both bot history and regular history)
                 for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
@@ -173,6 +177,8 @@ def get_data_loaders(args, tokenizer):
     for dataset_name, dataset in datasets.items():
         dataset = pad_dataset(dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
         for input_name in MODEL_INPUTS:
+            print(f'{input_name}:')
+            #print(dataset[input_name])
             tensor = torch.tensor(dataset[input_name])
             if input_name != "mc_labels":
                 tensor = tensor.view((-1, datasets[dataset_name]["n_candidates"]) + tensor.shape[1:])
