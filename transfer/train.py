@@ -65,7 +65,7 @@ def add_special_tokens_(model, tokenizer):
 def build_input_from_segments(name, previous_tweet, current_tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from 3 segments: persona, history and last reply. """
     bos, eos, name_tok, previous_tok, current_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) # all but <pad>
-    sequence = [[bos , name[0]], [previous_tok] + previous_tweet, [current_tok] + current_tweet + [eos]]
+    sequence = [[bos , name[0]], [previous_tok] + previous_tweet, [current_tok] + current_tweet + ([eos] if with_eos else []) ]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [name_tok]*2 + [previous_tok]*len(sequence[1]) + [current_tok]*len(sequence[2])
