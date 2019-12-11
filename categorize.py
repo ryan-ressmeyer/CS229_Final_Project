@@ -61,11 +61,14 @@ with open(acc, 'r+') as csvfile:
     print('here')
     reader = csv.reader(csvfile)
     writer = csv.writer(csvfile)
-    histories = [[get_history(model, row[2])] for row in reader]
-    writer.writerows(histories)
+    for row in reader:
+        hist = get_history(model, row[2])
+        writer.writerow([hist])
+        print('row: ', count)
+        count += 1
     
     # for row in reader:
     #     hist = get_history(model, row[2])
     #     writer.writerow([hist])
 
-    # wtr = csv.writer(open(csv, 'w'), delimiter=',', lineterminator='\n')
+    # wtr = csv.writer(opwriter.writerow([hist])
