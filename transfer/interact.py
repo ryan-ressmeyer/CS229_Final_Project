@@ -12,7 +12,7 @@ import warnings
 import torch
 import torch.nn.functional as F
 
-from pytorch_transformers import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, GPT2LMHeadModel, GPT2Tokenizer
+from transformers import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, GPT2LMHeadModel, GPT2Tokenizer
 from train import get_dataset, SPECIAL_TOKENS, build_input_from_segments, add_special_tokens_
 
 def top_filtering(logits, top_k=0., top_p=0.9, threshold=-float('Inf'), filter_value=-float('Inf')):
@@ -129,7 +129,7 @@ def run():
     dataset = get_dataset(tokenizer)
     personalities = [dialog["name"] for dataset in dataset.values() for dialog in dataset]
     personality = random.choice(personalities)
-    logger.info("Selected personality: %s", tokenizer.decode(chain(*personality)))
+    logger.info("Selected personality: %s", tokenizer.decode(personality))
 
     previous_tweet = []
     while True:
@@ -141,6 +141,7 @@ def run():
         with torch.no_grad():
             out_ids = sample_sequence(personality, previous_tweet, tokenizer, model, args)
         out_text = tokenizer.decode(out_ids, skip_special_tokens=True)
+        print('New Tweet:')
         print(out_text)
 
 
