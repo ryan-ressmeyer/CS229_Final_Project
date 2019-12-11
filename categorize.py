@@ -53,20 +53,25 @@ def get_history(model, tweet):
 
 accounts = ['Adam Schiff.csv', 'Alexandria Cortez.csv', 'Biden.csv', 'Elizabeth Warren.csv', 'Hillary.csv', 'Kamala Harris.csv', 'Obama.csv', 'Sanders.csv', 'Trump.csv']
 word2vec_output_file = '../word2vec.txt'
-model = gensim.models.KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
+model = gensim.models.KeyedVectors.load('model.model')#gensim.models.KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
 print('Loaded model!')
 # for acc in accounts:
-acc = 'Elizabeth Warren copy.csv'
+acc = 'Elizabeth Warren.csv'
 with open(acc, 'r+') as csvfile:
     print('here')
     reader = csv.reader(csvfile)
     writer = csv.writer(csvfile)
+    all = []
     for row in reader:
+        # if len(row) >= 2:
+        print('row: ', row[0])
         hist = get_history(model, row[2])
-        writer.writerow([hist])
-        print('row: ', count)
-        count += 1
-    
+        row.append(hist)
+        all.append(row)
+        # writer.writerow(row)
+        # print('row: ', count)
+        # count += 1
+    writer.writerows(all)
     # for row in reader:
     #     hist = get_history(model, row[2])
     #     writer.writerow([hist])
