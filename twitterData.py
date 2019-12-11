@@ -5,6 +5,7 @@ import csv
 import numpy as np
 import pandas as pd
 
+
 def createCSVFile(handle, name):
 	with open('twitterKeys.json', 'r') as f:
 		a = json.load(f)
