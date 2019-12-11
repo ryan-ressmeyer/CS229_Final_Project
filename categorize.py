@@ -20,10 +20,10 @@ def categorize(tweet):
 Go through tweets, rake keywords from each
 For each keyword, generate a set of related words (using word embeddings? glove
 '''
-
+count = 0
 def get_history(model, tweet):
-    print('row: ', count)
-    count += 1
+    # print('row: ', count)
+    # count += 1
     phrases = categorize(tweet)
     ret = ''
     for p in phrases:
@@ -50,25 +50,19 @@ def get_history(model, tweet):
         
 # print(model.most_similar('president'))
 # print(model.most_similar('china'))
-# model = gensim.models.KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
+
 accounts = ['Adam Schiff.csv', 'Alexandria Cortez.csv', 'Biden.csv', 'Elizabeth Warren.csv', 'Hillary.csv', 'Kamala Harris.csv', 'Obama.csv', 'Sanders.csv', 'Trump.csv']
 word2vec_output_file = '../word2vec.txt'
 model = gensim.models.KeyedVectors.load_word2vec_format(word2vec_output_file, binary=False)
 print('Loaded model!')
 # for acc in accounts:
 acc = 'Elizabeth Warren copy.csv'
-with open(acc) as csvfile:
+with open(acc, 'r+') as csvfile:
+    print('here')
     reader = csv.reader(csvfile)
     writer = csv.writer(csvfile)
-    count = 1
-    for row in reader:
-            hist = get_history(model, row[2])
-            writer.writerow([hist])
-            print('row: ', count)
-            count += 1
-
-    # histories = [[get_history(model, row[2])] for row in reader]
-    # writer.writerows(histories)
+    histories = [[get_history(model, row[2])] for row in reader]
+    writer.writerows(histories)
     
     # for row in reader:
     #     hist = get_history(model, row[2])
