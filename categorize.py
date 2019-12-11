@@ -57,11 +57,13 @@ model = gensim.models.KeyedVectors.load('model.model')#gensim.models.KeyedVector
 print('Loaded model!')
 # for acc in accounts:
 acc = 'Elizabeth Warren.csv'
-with open(acc, 'r+') as csvfile:
+
+all = []
+with open(acc, 'r') as csvfile:
     print('here')
     reader = csv.reader(csvfile)
-    writer = csv.writer(csvfile)
-    all = []
+    all.append(next(reader))
+    count = 0
     for row in reader:
         # if len(row) >= 2:
         print('row: ', row[0])
@@ -71,9 +73,8 @@ with open(acc, 'r+') as csvfile:
         # writer.writerow(row)
         # print('row: ', count)
         # count += 1
-    writer.writerows(all)
-    # for row in reader:
-    #     hist = get_history(model, row[2])
-    #     writer.writerow([hist])
 
-    # wtr = csv.writer(opwriter.writerow([hist])
+with open(acc, 'w') as csvfile:
+    writer = csv.writer(csvfile, lineterminator='\n')
+    writer.writerows(all)
+
