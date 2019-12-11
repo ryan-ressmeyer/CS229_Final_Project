@@ -24,12 +24,10 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, Output
 from transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer,
                                   GPT2DoubleHeadsModel, GPT2Tokenizer, WEIGHTS_NAME, CONFIG_NAME)
 
-from categorize import simliar_words
-
-SPECIAL_TOKENS = ["<bos>", "<eos>", "<name>", "<previous>", "<current>", "<pad>"]
+SPECIAL_TOKENS = ["<bos>", "<eos>", "<name>", "<context>", "<current>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<bos>', 'eos_token': '<eos>', 'pad_token': '<pad>',
-                         'additional_special_tokens': ("<name>", "<previous>", "<current>")}
-# Removed Speaker1/2 and added, name, previous, current
+                         'additional_special_tokens': ("<name>", "<context>", "<current>")}
+# Removed Speaker1/2 and added, name, context, current
 
 MODEL_INPUTS = ["input_ids", "mc_token_ids", "lm_labels", "mc_labels", "token_type_ids"]
 PADDED_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
@@ -63,13 +61,13 @@ def add_special_tokens_(model, tokenizer):
         model.resize_token_embeddings(new_num_tokens=orig_num_tokens + num_added_tokens)
 
 # tweets need to be in tokenized form ["word", "word", ...]
-def build_input_from_segments(name, previous_tweet, current_tweet, tokenizer, lm_labels=False, with_eos=True):
+def build_input_from_segments(name, context, current_tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from 3 segments: persona, history and last reply. """
-    bos, eos, name_tok, previous_tok, current_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) # all but <pad>
-    sequence = [[bos , name[0]], [previous_tok] + previous_tweet, [current_tok] + current_tweet + ([eos] if with_eos else []) ]
+    bos, eos, name_tok, context_tok, current_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) # all but <pad>
+    sequence = [[bos , name[0]], [context_tok] + context, [current_tok] + current_tweet + ([eos] if with_eos else []) ]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
-    instance["token_type_ids"] = [name_tok]*2 + [previous_tok]*len(sequence[1]) + [current_tok]*len(sequence[2])
+    instance["token_type_ids"] = [name_tok]*2 + [context_tok]*len(sequence[1]) + [current_tok]*len(sequence[2])
     instance["mc_token_ids"] = len(instance["input_ids"]) - 1
     instance["lm_labels"] = [-1] * len(instance["input_ids"])
     if lm_labels:
@@ -119,24 +117,25 @@ def get_dataset(tokenizer):
             distractor.append(row)
 
     def clean(data):
-        return [tweet[1:] for tweet in data if tweet[2].count(' ') > 3]
+        return [tweet[1:] for tweet in data if tweet[2].count(' ') > 3][1:]
     
     target = clean(target)
     distractor = clean(distractor)
     num_distractor = len(distractor)
     num_tweets = len(target)
+    print(num_tweets)
     utterances = []
-    for i in range(0, num_tweets - num_tweets%2, 2):
-        utterances.append({'history' : [target[i+1][1]], 'candidates' : [distractor[random.randint(0, num_distractor-1)][1], target[i][1]]})
+    for i in range(0, num_tweets):
+        utterances.append({'history' : [target[i][2]], 'candidates' : [distractor[random.randint(0, num_distractor-1)][1], target[i][1]]})
 
     random.shuffle(utterances)
     
-    split = int(num_tweets*3/8)
+    split = int(num_tweets*3/4)
     train = utterances[:split]
     valid = utterances[split:]
 
     dataset = {'train' : [{'name' : target[0][0], 'utterances' : train}], 'valid' : [{'name' : target[0][0], 'utterances' : valid}]}
-    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
+    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["context"]}]}]}
     logger.info("Tokenize and encode the dataset")
     def tokenize(obj):
         if isinstance(obj, str):
@@ -153,7 +152,7 @@ def get_data_loaders(args, tokenizer):
     """ Prepare the dataset for training and evaluation """
     tweets = get_dataset(tokenizer)
     #old: {'train' : [{"personality": "", "utterances" : [{"candidates": ["final is real"], "history":["first","second"]}]}]}
-    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["previous tweet"]}]}]}
+    #new: {'train' : [{"name": "NAME", "utterances" : [{"candidates": ["Random distractor tweet", "final is real"], "history":["context"]}]}]}
     logger.info("Build inputs and labels")
     datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
     for dataset_name, dataset in tweets.items():
@@ -163,10 +162,10 @@ def get_data_loaders(args, tokenizer):
         for dialog in dataset:
             persona = dialog["name"].copy()
             for utterance in dialog["utterances"]:
-                previous_tweet = utterance["history"][-1] # num history will be 1 [-(2*args.max_history+1):] (doubled to include both bot history and regular history)
+                context = utterance["history"][-1] # num history will be 1 [-(2*args.max_history+1):] (doubled to include both bot history and regular history)
                 for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
                     lm_labels = bool(j == num_candidates-1) # lm_label is true if it is the correct output
-                    instance = build_input_from_segments(persona, previous_tweet, candidate, tokenizer, lm_labels) # here it is built
+                    instance = build_input_from_segments(persona, context, candidate, tokenizer, lm_labels) # here it is built
                     for input_name, input_array in instance.items():
                         datasets[dataset_name][input_name].append(input_array) # adds instance contents to datasets
                 datasets[dataset_name]["mc_labels"].append(num_candidates - 1) # mc_labels is index to the final and correct candidate? (number of candidates - 1)
