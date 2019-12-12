@@ -152,7 +152,8 @@ def main():
     dataset = get_dataset(tokenizer)
     personalities = [dialog["name"] for dataset in dataset.values() for dialog in dataset]
     personality = random.choice(personalities)
-    logger.info("Selected personality: %s", tokenizer.decode(personality))
+    name = tokenizer.decode(personality)
+    logger.info("Selected personality: %s", name)
 
     for i in range(args.num_tweets):
         base_tweet = distractor[random.randint(0, num_distractor-1)]
@@ -164,7 +165,7 @@ def main():
         print(base_tweet[1])
         print('Context:')
         print(base_tweet[2])
-        print(f"Generated {personality} Tweet: ")
+        print(f"Generated {name} Tweet: ")
         print(out_text)
 
 
