@@ -123,11 +123,10 @@ def get_dataset(tokenizer):
     distractor = clean(distractor)
     num_distractor = len(distractor)
     num_tweets = len(target)
-    print(num_tweets)
+
     utterances = []
     for i in range(0, num_tweets):
         utterances.append({'history' : [target[i][2]], 'candidates' : [distractor[random.randint(0, num_distractor-1)][1], target[i][1]]})
-
     random.shuffle(utterances)
     
     split = int(num_tweets*3/4)
@@ -143,6 +142,7 @@ def get_dataset(tokenizer):
         if isinstance(obj, dict):
             return dict((n, tokenize(o)) for n, o in obj.items())
         return list(tokenize(o) for o in obj)
+    
     dataset = tokenize(dataset)
     torch.save(dataset, "dataset.bin")
     return dataset
@@ -177,7 +177,7 @@ def get_data_loaders(args, tokenizer):
     for dataset_name, dataset in datasets.items():
         dataset = pad_dataset(dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
         for input_name in MODEL_INPUTS:
-            print(f'{input_name}:')
+            #print(f'{input_name}:')
             #print(dataset[input_name])
             tensor = torch.tensor(dataset[input_name])
             if input_name != "mc_labels":
