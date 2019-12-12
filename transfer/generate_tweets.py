@@ -161,11 +161,12 @@ def main():
         with torch.no_grad():
             out_ids = sample_sequence(personality, context, tokenizer, model, args)
         out_text = tokenizer.decode(out_ids, skip_special_tokens=True)
+        print(f'\n\nTweet {i})')
         print(f"Original {base_tweet[0]} Tweet:")
         print(base_tweet[1])
-        print('Context:')
+        print('\nContext:')
         print(base_tweet[2])
-        print(f"Generated {name} Tweet: ")
+        print(f"\nGenerated {name} Tweet: ")
         print(out_text)
 
 
