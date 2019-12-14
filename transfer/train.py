@@ -53,7 +53,7 @@ def add_special_tokens_(model, tokenizer):
 def build_input_from_segments(name, context, tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from name, context, and tweet """
     bos, eos, name_tok, context_tok, tweet = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
-    sequence = [[bos , name[0]], [context_tok] + context, [tweet] + tweet + ([eos] if with_eos else []) ]
+    sequence = [[bos , name[0]], [context_tok] + [context], [tweet] + tweet + ([eos] if with_eos else []) ]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [name_tok]*2 + [context_tok]*len(sequence[1]) + [tweet]*len(sequence[2])
@@ -117,7 +117,6 @@ def get_dataset(tokenizer):
     
     dataset = tokenize(dataset)
     return dataset
-
 
 def get_data_loaders(args, tokenizer):
     """ Prepare the dataset for training and evaluation """
