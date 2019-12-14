@@ -145,7 +145,6 @@ def get_data_loaders(args, tokenizer):
     for dataset_name, dataset in datasets.items():
         dataset = pad_dataset(dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
         for input_name in MODEL_INPUTS:
-            print(tokenizer.decode(dataset[input_name]))
             tensor = torch.tensor(dataset[input_name])
             if input_name != "mc_labels":
                 tensor = tensor.view((-1, datasets[dataset_name]["n_candidates"]) + tensor.shape[1:])
