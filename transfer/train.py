@@ -35,6 +35,11 @@ PADDED_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
 
 logger = logging.getLogger(__file__)
 
+def average_distributed_scalar(scalar, args):
+    """ Not running distributed, only return scalar. """
+    return scalar
+
+
 def pad_dataset(dataset, padding=0):
     """ Pad the dataset. This could be optimized by defining a Dataset class and padding at the batch level, but this is simpler. """
     max_l = max(len(x) for x in dataset["input_ids"])
@@ -232,11 +237,6 @@ def train():
     if args.n_epochs < 1:
         trainer.add_event_handler(Events.COMPLETED, lambda _: evaluator.run(val_loader))
     trainer.add_event_handler(Events.STARTED, lambda _: evaluator.run(val_loader))
-
-    # Make sure distributed data samplers split the dataset nicely between the distributed processes
-    if args.distributed:
-        trainer.add_event_handler(Events.EPOCH_STARTED, lambda engine: train_sampler.set_epoch(engine.state.epoch))
-        evaluator.add_event_handler(Events.EPOCH_STARTED, lambda engine: valid_sampler.set_epoch(engine.state.epoch))
 
     # Linearly decrease the learning rate from lr to zero
     scheduler = PiecewiseLinear(optimizer, "lr", [(0, args.lr), (args.n_epochs * len(train_loader), 0.0)])
