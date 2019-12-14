@@ -54,10 +54,9 @@ def build_input_from_segments(name, context, tweet, tokenizer, lm_labels=False, 
     """ Build a sequence of input from name, context, and tweet """
     bos, eos, name_tok, context_tok, tweet_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
     sequence = [[bos , name[0]], [context_tok] + context, [tweet_tok] + tweet + ([eos] if with_eos else []) ]
-    print(sequence)
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
-    instance["token_type_ids"] = [name_tok]*2 + [context_tok]*len(sequence[1]) + [tweet]*len(sequence[2])
+    instance["token_type_ids"] = [name_tok]*2 + [context_tok]*len(sequence[1]) + [tweet_tok]*len(sequence[2])
     instance["mc_token_ids"] = len(instance["input_ids"]) - 1
     instance["lm_labels"] = [-1] * len(instance["input_ids"])
     if lm_labels:
