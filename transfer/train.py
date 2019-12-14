@@ -164,8 +164,6 @@ def get_data_loaders(args, tokenizer):
 
 def train():
     parser = ArgumentParser()
-    parser.add_argument("--model_checkpoint", type=str, default="openai-gpt", help="Path, url or short name of the model")
-    parser.add_argument("--num_candidates", type=int, default=2, help="Number of candidates for training") # candidates will always be 2
     parser.add_argument("--train_batch_size", type=int, default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int, default=4, help="Batch size for validation")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Accumulate gradients on several steps")
@@ -182,12 +180,12 @@ def train():
     logger.info("Arguments: %s", pformat(args))
 
     logger.info("Prepare tokenizer, pretrained model and optimizer.")
-    tokenizer_class = GPT2Tokenizer if "gpt2" in args.model_checkpoint else OpenAIGPTTokenizer # cant use Autotokenizer because checkpoint could be a Path
-    tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
+    tokenizer_class = GPT2Tokenizer
+    tokenizer = tokenizer_class.from_pretrained("gpt2")
 
 
-    model_class = GPT2DoubleHeadsModel if "gpt2" in args.model_checkpoint else OpenAIGPTDoubleHeadsModel
-    model = model_class.from_pretrained(args.model_checkpoint)
+    model_class = GPT2DoubleHeadsModel
+    model = model_class.from_pretrained("gpt2")
     model.to(args.device)
     # Add special tokens if they are not already added
     add_special_tokens_(model, tokenizer) ### TODO add our own special tokens
@@ -261,7 +259,7 @@ def train():
     pbar.attach(trainer, metric_names=["loss"])
     evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
 
-    log_dir = make_logdir(args.model_checkpoint)
+    log_dir = make_logdir("gpt2")
     tb_logger = TensorboardLogger(log_dir)
 
     tb_logger.attach(trainer, log_handler=OutputHandler(tag="training", metric_names=["loss"]), event_name=Events.ITERATION_COMPLETED)
