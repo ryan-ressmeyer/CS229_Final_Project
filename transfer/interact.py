@@ -1,7 +1,7 @@
-# # Copyright (c) 2019-present, HuggingFace Inc.
-# All rights reserved.
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+#
+# Code based off https://github.com/huggingface/transfer-learning-conv-ai
+#
+
 import logging
 import random
 from argparse import ArgumentParser
@@ -88,7 +88,6 @@ def sample_sequence(name, previous_tweet, tokenizer, model, args, current_output
 
 def run():
     parser = ArgumentParser()
-    #parser.add_argument("--dataset_path", type=str, default="", help="Path or url of the dataset. If empty download from S3.")
     parser.add_argument("--dataset_cache", type=str, default='./dataset.bin', help="Path or url of the dataset cache")
     parser.add_argument("--model", type=str, default="openai-gpt", help="Model type (openai-gpt or gpt2)", choices=['openai-gpt', 'gpt2'])  # anything besides gpt2 will load openai-gpt
     parser.add_argument("--model_checkpoint", type=str, default="", help="Path, url or short name of the model")
@@ -119,7 +118,7 @@ def run():
 
 
     logger.info("Get pretrained model and tokenizer")
-    tokenizer_class, model_class = (GPT2Tokenizer, GPT2LMHeadModel) if args.model == 'gpt2' else (OpenAIGPTTokenizer, OpenAIGPTLMHeadModel)
+    tokenizer_class, model_class = (GPT2Tokenizer, GPT2LMHeadModel)
     tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
     model = model_class.from_pretrained(args.model_checkpoint)
     model.to(args.device)

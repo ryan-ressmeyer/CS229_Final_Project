@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "Users/sammasling/opt/miniconda3/bin/python",
+    "python.pythonPath": "/home/ryanress/anaconda3/envs/cs229/bin/python",
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true
 }
