@@ -231,8 +231,7 @@ def train():
     trainer.add_event_handler(Events.EPOCH_COMPLETED, lambda _: evaluator.run(val_loader))
     if args.n_epochs < 1:
         trainer.add_event_handler(Events.COMPLETED, lambda _: evaluator.run(val_loader))
-    if args.eval_before_start:
-        trainer.add_event_handler(Events.STARTED, lambda _: evaluator.run(val_loader))
+    trainer.add_event_handler(Events.STARTED, lambda _: evaluator.run(val_loader))
 
     # Make sure distributed data samplers split the dataset nicely between the distributed processes
     if args.distributed:
