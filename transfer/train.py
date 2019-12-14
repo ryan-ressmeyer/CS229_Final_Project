@@ -53,7 +53,7 @@ def add_special_tokens_(model, tokenizer):
 def build_input_from_segments(name, context, tweet, tokenizer, lm_labels=False, with_eos=True):
     """ Build a sequence of input from name, context, and tweet """
     bos, eos, name_tok, context_tok, tweet_tok = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
-    sequence = [[bos , name[0]], [context_tok] + [context], [tweet_tok] + tweet + ([eos] if with_eos else []) ]
+    sequence = [[bos , name[0]], [context_tok] + context, [tweet_tok] + tweet + ([eos] if with_eos else []) ]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [name_tok]*2 + [context_tok]*len(sequence[1]) + [tweet]*len(sequence[2])
@@ -152,9 +152,9 @@ def get_data_loaders(args, tokenizer):
 
     logger.info("Build train and validation dataloaders")
     train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
-    valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_dataset) if args.distributed else None
-    train_loader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size, shuffle=(not args.distributed))
+    train_sampler = None #torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else
+    valid_sampler = None #torch.utils.data.distributed.DistributedSampler(valid_dataset) if args.distributed else 
+    train_loader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size, shuffle=True)
     valid_loader = DataLoader(valid_dataset, sampler=valid_sampler, batch_size=args.valid_batch_size, shuffle=False)
 
     logger.info("Train dataset (Batch, Candidates, Seq length): {}".format(train_dataset.tensors[0].shape))
